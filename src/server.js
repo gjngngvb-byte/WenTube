@@ -10,6 +10,8 @@ const net = require("node:net");
 
 const app = express();
 app.disable("x-powered-by");
+// Render fica atrás de um proxy confiável; necessário para limitar requisições por IP corretamente.
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "8kb" }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 
