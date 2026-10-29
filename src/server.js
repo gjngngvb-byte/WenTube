@@ -63,7 +63,7 @@ function runYtDlp(url, outputTemplate, timeoutMs) {
   return new Promise((resolve, reject) => {
     const args = [
       "--no-playlist", "--no-warnings", "--restrict-filenames",
-      "--socket-timeout", "20", "--retries", "1",
+      "--socket-timeout", "20", "--retries", "1", "--js-runtimes", "deno",
       "--max-filesize", MAX_DOWNLOAD_MB + "M",
       "-f", "best[ext=mp4]/best", "-o", outputTemplate, url
     ];
@@ -86,6 +86,7 @@ function runYtDlp(url, outputTemplate, timeoutMs) {
     child.on("error", () => finish(new Error("Não foi possível iniciar o yt-dlp.")));
     child.on("close", (code) => {
       if (code === 0) return finish();
+      console.error("yt-dlp failed (exit " + code + "): " + stderr.slice(0, 2500));
       const detail = stderr.toLowerCase();
       if (detail.includes("max-filesize") || detail.includes("file is larger")) {
         return finish(new Error("O arquivo excede o tamanho máximo permitido."));
