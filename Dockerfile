@@ -4,9 +4,9 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 ffmpeg ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && npm install --global yt-dlp
+    && apt-get install -y --no-install-recommends python3 python3-pip ffmpeg ca-certificates \
+    && python3 -m pip install --break-system-packages --no-cache-dir yt-dlp \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm install --omit=dev
