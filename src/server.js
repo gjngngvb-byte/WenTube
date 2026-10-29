@@ -2,6 +2,7 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
+const nodeFs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -10,6 +11,7 @@ const net = require("node:net");
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "8kb" }));
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.API_KEY;
@@ -35,20 +37,12 @@ const limiter = rateLimit({
 
 function isAllowedUrl(value) {
   if (typeof value !== "string" || value.length > 2048) return false;
-
   let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
-    return false;
-  }
-
+  try { parsed = new URL(value); } catch { return false; }
   if (parsed.protocol !== "https:" || parsed.username || parsed.password) return false;
   if (parsed.port && parsed.port !== "443") return false;
-
   const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
   if (net.isIP(host) || host === "localhost" || host.endsWith(".localhost")) return false;
-
   return ALLOWED_HOSTS.some((allowed) => host === allowed || host.endsWith("." + allowed));
 }
 
@@ -58,7 +52,6 @@ function hasValidKey(req) {
   const bearerKey = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const supplied = headerKey || bearerKey;
   if (!supplied) return false;
-
   const a = Buffer.from(supplied);
   const b = Buffer.from(API_KEY);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
@@ -67,34 +60,24 @@ function hasValidKey(req) {
 function runYtDlp(url, outputTemplate, timeoutMs) {
   return new Promise((resolve, reject) => {
     const args = [
-      "--no-playlist",
-      "--no-warnings",
-      "--restrict-filenames",
-      "--socket-timeout", "20",
-      "--retries", "1",
-      "--max-filesize", `${MAX_DOWNLOAD_MB}M`,
-      "-f", "best[ext=mp4]/best",
-      "-o", outputTemplate,
-      url
+      "--no-playlist", "--no-warnings", "--restrict-filenames",
+      "--socket-timeout", "20", "--retries", "1",
+      "--max-filesize", MAX_DOWNLOAD_MB + "M",
+      "-f", "best[ext=mp4]/best", "-o", outputTemplate, url
     ];
-
     const child = spawn("yt-dlp", args, { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
     let settled = false;
-
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       finish(new Error("O download excedeu o tempo limite."));
     }, timeoutMs);
-
     function finish(error) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (error) reject(error);
-      else resolve();
+      if (error) reject(error); else resolve();
     }
-
     child.stderr.on("data", (chunk) => {
       if (stderr.length < 6000) stderr += chunk.toString();
     });
@@ -110,15 +93,7 @@ function runYtDlp(url, outputTemplate, timeoutMs) {
   });
 }
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "wentube-api" });
-});
-
-app.post("/api/download", limiter, async (req, res) => {
-  if (!hasValidKey(req)) {
-    return res.status(401).json({ error: "Chave de API ausente ou inválida." });
-  }
-
+async function handleDownload(req, res) {
   const { url } = req.body || {};
   if (!isAllowedUrl(url)) {
     return res.status(400).json({
@@ -129,12 +104,10 @@ app.post("/api/download", limiter, async (req, res) => {
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "wentube-"));
   const outputTemplate = path.join(workDir, "%(id)s.%(ext)s");
-
   try {
     await runYtDlp(url, outputTemplate, DOWNLOAD_TIMEOUT_MS);
     const entries = await fs.readdir(workDir);
     const candidates = [];
-
     for (const entry of entries) {
       const fullPath = path.join(workDir, entry);
       const stat = await fs.stat(fullPath);
@@ -142,24 +115,21 @@ app.post("/api/download", limiter, async (req, res) => {
         candidates.push({ fullPath, name: entry, size: stat.size });
       }
     }
-
     if (candidates.length === 0) {
+      await fs.rm(workDir, { recursive: true, force: true });
       return res.status(502).json({ error: "O site não retornou um arquivo baixável." });
     }
-
     candidates.sort((a, b) => b.size - a.size);
     const file = candidates[0];
-
     if (file.size > MAX_DOWNLOAD_MB * 1024 * 1024) {
+      await fs.rm(workDir, { recursive: true, force: true });
       return res.status(413).json({ error: "O arquivo excede o tamanho máximo permitido." });
     }
-
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 180) || "download.bin";
     res.setHeader("Content-Length", String(file.size));
-    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+    res.setHeader("Content-Disposition", 'attachment; filename="' + safeName + '"');
     res.setHeader("Cache-Control", "no-store");
-
-    const stream = require("node:fs").createReadStream(file.fullPath);
+    const stream = nodeFs.createReadStream(file.fullPath);
     stream.on("error", () => {
       if (!res.headersSent) res.status(500).json({ error: "Falha ao ler o arquivo." });
       else res.destroy();
@@ -177,6 +147,21 @@ app.post("/api/download", limiter, async (req, res) => {
     const status = message.includes("tempo limite") ? 504 : 502;
     return res.status(status).json({ error: message });
   }
+}
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", service: "wentube-api" });
+});
+
+// Endpoint para a interface web: não expõe a chave secreta no navegador.
+// Continua protegido por limite de requisições, tamanho máximo e domínios permitidos.
+app.post("/api/web-download", limiter, handleDownload);
+
+app.post("/api/download", limiter, async (req, res) => {
+  if (!hasValidKey(req)) {
+    return res.status(401).json({ error: "Chave de API ausente ou inválida." });
+  }
+  return handleDownload(req, res);
 });
 
 app.use((err, _req, res, _next) => {
@@ -186,5 +171,5 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`WenTube API listening on port ${PORT}`);
+  console.log("WenTube API listening on port " + PORT);
 });
