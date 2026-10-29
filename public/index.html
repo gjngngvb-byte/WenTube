@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090b12">
+  <meta name="description" content="WenTube, sua central simples para baixar arquivos de links autorizados.">
+  <title>WenTube · Downloads</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090b12;--panel:#121622;--line:#272d3d;--muted:#9aa4ba;--text:#f6f7fb;--violet:#a78bfa;--cyan:#67e8f9}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#252044 0,transparent 42%),var(--bg);color:var(--text);font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column}
+    header{width:min(1080px,100%);margin:0 auto;padding:26px 24px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;gap:11px;align-items:center;font-weight:800;font-size:1.25rem;letter-spacing:-.04em}.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--violet),var(--cyan));color:#111322;font-weight:900}.tag{font-size:.78rem;border:1px solid var(--line);border-radius:99px;padding:6px 10px;color:#c4cbe0}
+    main{width:min(760px,100%);margin:auto;padding:48px 24px 84px}.eyebrow{text-transform:uppercase;letter-spacing:.17em;color:var(--cyan);font-size:.76rem;font-weight:800;text-align:center}.hero{text-align:center;margin-bottom:30px}.hero h1{font-size:clamp(2.4rem,8vw,4.7rem);letter-spacing:-.075em;line-height:1.02;margin:15px 0}.hero h1 span{background:linear-gradient(90deg,#c4b5fd,#67e8f9);color:transparent;background-clip:text}.hero p{color:var(--muted);max-width:520px;margin:0 auto;font-size:1.04rem}
+    .panel{background:linear-gradient(160deg,rgba(24,29,45,.97),rgba(15,18,29,.98));border:1px solid #30364a;border-radius:24px;padding:clamp(20px,5vw,34px);box-shadow:0 25px 80px #0005}.field-label{display:block;font-size:.88rem;font-weight:700;margin-bottom:10px}.input-wrap{display:flex;align-items:center;gap:10px;background:#090c14;border:1px solid #363d53;border-radius:14px;padding:7px 8px 7px 15px;transition:border .2s}.input-wrap:focus-within{border-color:var(--violet);box-shadow:0 0 0 3px #a78bfa22}.input-wrap input{min-width:0;flex:1;background:transparent;border:0;outline:0;color:var(--text);padding:12px 0;font:inherit}.input-wrap input::placeholder{color:#6e7890}.paste{border:1px solid #343b50;background:#171c2a;color:#dce2f4;border-radius:9px;padding:8px 11px;cursor:pointer}.submit{width:100%;margin-top:14px;padding:15px 18px;border:0;border-radius:13px;background:linear-gradient(100deg,#a78bfa,#67e8f9);color:#111322;font:800 1rem inherit;cursor:pointer;transition:transform .15s,opacity .15s}.submit:hover{transform:translateY(-1px)}.submit:disabled{opacity:.55;cursor:wait;transform:none}.status{display:none;margin-top:16px;padding:13px 15px;border-radius:12px;background:#0c101a;border:1px solid var(--line);color:#cbd5e1;overflow-wrap:anywhere}.status.show{display:block}.status.error{border-color:#7f343e;color:#fecaca}.status.success{border-color:#285c51;color:#a7f3d0}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #aab2c4;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}@keyframes spin{to{transform:rotate(360deg)}}.features{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.feature{border:1px solid var(--line);background:#10131d99;border-radius:14px;padding:14px}.feature b{display:block;font-size:.88rem;margin:7px 0 2px}.feature span{font-size:.78rem;color:var(--muted)}.note{text-align:center;color:#7f899f;font-size:.78rem;margin:23px auto 0;max-width:580px}footer{text-align:center;color:#6f7890;font-size:.8rem;padding:24px;border-top:1px solid #ffffff0b}
+    @media(max-width:560px){header{padding:18px}.tag{font-size:.7rem}main{padding:35px 16px 55px}.features{grid-template-columns:1fr}.feature{display:flex;align-items:center;gap:10px}.feature b{margin:0}.feature span{display:block}.input-wrap{padding-left:12px}.paste{padding:8px}.hero p{font-size:.95rem}}
+  </style>
+</head>
+<body>
+  <header><div class="brand"><div class="logo">W</div>WenTube</div><div class="tag">API independente · v1</div></header>
+  <main>
+    <section class="hero"><div class="eyebrow">Link entra. Arquivo sai.</div><h1>Seus downloads,<br><span>sem complicação.</span></h1><p>Cole um link de conteúdo que você tem autorização para baixar. O WenTube cuida do resto.</p></section>
+    <section class="panel" aria-label="Baixar arquivo">
+      <form id="download-form">
+        <label class="field-label" for="url">Link do conteúdo</label>
+        <div class="input-wrap"><input id="url" name="url" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="url" required maxlength="2048"><button class="paste" id="paste" type="button">Colar</button></div>
+        <button class="submit" id="submit" type="submit">↓ &nbsp; Preparar download</button>
+      </form>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+    <section class="features" aria-label="Características">
+      <div class="feature"><span>◈</span><div><b>Simples e direto</b><span>Sem instalar programas</span></div></div>
+      <div class="feature"><span>⌁</span><div><b>Conexão protegida</b><span>Chaves secretas ficam no servidor</span></div></div>
+      <div class="feature"><span>↓</span><div><b>Até 100 MB</b><span>Limite atual por arquivo</span></div></div>
+    </section>
+    <p class="note">Disponibilidade depende do site de origem e das permissões do conteúdo. Use apenas links que você tem direito de baixar. Por enquanto, somente domínios autorizados pelo servidor são aceitos.</p>
+  </main>
+  <footer>WenTube · Feito para ser simples.</footer>
+  <script>
+    const form=document.querySelector("#download-form");
+    const input=document.querySelector("#url");
+    const button=document.querySelector("#submit");
+    const statusBox=document.querySelector("#status");
+    function showStatus(message,type){statusBox.textContent=message;statusBox.className="status show "+(type||"");}
+    document.querySelector("#paste").addEventListener("click",async()=>{try{input.value=await navigator.clipboard.readText();input.focus();}catch{showStatus("Não foi possível acessar a área de transferência. Cole o link manualmente no campo.","error");}});
+    form.addEventListener("submit",async(event)=>{
+      event.preventDefault();
+      const url=input.value.trim();
+      if(!url){showStatus("Cole um link válido para continuar.","error");return;}
+      button.disabled=true;button.innerHTML='<span class="spinner"></span>Preparando arquivo…';showStatus("Estamos verificando o link e preparando seu arquivo. Isso pode levar alguns minutos.");
+      try{
+        const response=await fetch("/api/web-download",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
+        if(!response.ok){
+          let message="Não foi possível baixar este link.";
+          try{const data=await response.json();if(data.error)message=data.error;if(data.allowedHosts)message+=" Domínios aceitos: "+data.allowedHosts.join(", ")+ ".";}catch{}
+          throw new Error(message);
+        }
+        const blob=await response.blob();
+        const disposition=response.headers.get("Content-Disposition")||"";
+        const match=disposition.match(/filename="([^"]+)"/i);
+        const filename=match?match[1]:"wentube-download";
+        const objectUrl=URL.createObjectURL(blob);
+        const link=document.createElement("a");link.href=objectUrl;link.download=filename;document.body.appendChild(link);link.click();link.remove();
+        setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+        showStatus("Arquivo pronto! O download foi enviado para o seu dispositivo.","success");
+      }catch(error){showStatus(error.message||"Falha de conexão. Tente novamente mais tarde.","error");}
+      finally{button.disabled=false;button.textContent="↓  Preparar download";}
+    });
+  </script>
+</body>
+</html>
