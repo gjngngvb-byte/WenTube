@@ -12,6 +12,7 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY src ./src
+COPY public ./public
 
 RUN useradd --system --uid 10001 appuser
 USER appuser
