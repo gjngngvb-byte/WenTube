@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: wentube-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: API_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: youtube.com,youtu.be
+      - key: MAX_DOWNLOAD_MB
+        value: "100"
+      - key: DOWNLOAD_TIMEOUT_MS
+        value: "120000"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "5"
