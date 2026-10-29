@@ -160,7 +160,7 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "wentube-temp-videos";
 
-async function uploadToSupabaseStorage(filePath, objectPath, contentType) {
+async function uploadToSupabaseStorage(filePath, objectPath, contentType, downloadName) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Armazenamento ainda não configurado: adicione SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Render.");
   }
@@ -197,7 +197,7 @@ async function uploadToSupabaseStorage(filePath, objectPath, contentType) {
         Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ expiresIn: 3600 })
+      body: JSON.stringify({ expiresIn: 3600, download: downloadName })
     });
   if (!signResponse.ok) {
     const detail = (await signResponse.text()).slice(0, 500);
@@ -241,7 +241,7 @@ async function handleStoredDownload(req, res) {
     const objectPath = new Date().toISOString().slice(0, 10) + "/" + crypto.randomUUID() + "-" + safeName;
     const ext = path.extname(safeName).toLowerCase();
     const contentType = ext === ".mp4" ? "video/mp4" : ext === ".webm" ? "video/webm" : ext === ".mov" ? "video/quicktime" : "application/octet-stream";
-    const downloadUrl = await uploadToSupabaseStorage(file.fullPath, objectPath, contentType);
+    const downloadUrl = await uploadToSupabaseStorage(file.fullPath, objectPath, contentType, safeName);
     return res.json({
       status: "ready",
       filename: safeName,
