@@ -88,6 +88,9 @@ function runYtDlp(url, outputTemplate, timeoutMs) {
       if (code === 0) return finish();
       console.error("yt-dlp failed (exit " + code + "): " + stderr.slice(0, 2500));
       const detail = stderr.toLowerCase();
+      if (detail.includes("sign in to confirm") || detail.includes("not a bot") || detail.includes("confirm you're not a bot")) {
+        return finish(new Error("O YouTube bloqueou o acesso automatizado a este vídeo (verificação anti-bot). O WenTube não consegue obter este link agora. Tente um link público diferente ou use as opções oficiais de download do YouTube, quando disponíveis."));
+      }
       if (detail.includes("max-filesize") || detail.includes("file is larger")) {
         return finish(new Error("O arquivo excede o tamanho máximo permitido."));
       }
