@@ -48,20 +48,16 @@
       if(!url){showStatus("Cole um link válido para continuar.","error");return;}
       button.disabled=true;button.innerHTML='<span class="spinner"></span>Preparando arquivo…';showStatus("Estamos verificando o link e preparando seu arquivo. Isso pode levar alguns minutos.");
       try{
-        const response=await fetch("/api/web-download",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
+        const response=await fetch("/api/web-download-stored",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
         if(!response.ok){
           let message="Não foi possível baixar este link.";
           try{const data=await response.json();if(data.error)message=data.error;if(data.allowedHosts)message+=" Domínios aceitos: "+data.allowedHosts.join(", ")+ ".";}catch{}
           throw new Error(message);
         }
-        const blob=await response.blob();
-        const disposition=response.headers.get("Content-Disposition")||"";
-        const match=disposition.match(/filename="([^"]+)"/i);
-        const filename=match?match[1]:"wentube-download";
-        const objectUrl=URL.createObjectURL(blob);
-        const link=document.createElement("a");link.href=objectUrl;link.download=filename;document.body.appendChild(link);link.click();link.remove();
-        setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
-        showStatus("Arquivo pronto! O download foi enviado para o seu dispositivo.","success");
+        const data=await response.json();
+        if(!data.downloadUrl)throw new Error("O armazenamento não retornou um link de download.");
+        showStatus("Arquivo salvo na nuvem! Seu download vai começar agora.","success");
+        window.location.href=data.downloadUrl;
       }catch(error){showStatus(error.message||"Falha de conexão. Tente novamente mais tarde.","error");}
       finally{button.disabled=false;button.textContent="↓  Preparar download";}
     });
