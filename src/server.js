@@ -155,6 +155,110 @@ async function handleDownload(req, res) {
   }
 }
 
+
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "wentube-temp-videos";
+
+async function uploadToSupabaseStorage(filePath, objectPath, contentType) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Armazenamento ainda não configurado: adicione SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Render.");
+  }
+  const stat = await fs.stat(filePath);
+  const uploadUrl = SUPABASE_URL + "/storage/v1/object/" +
+    encodeURIComponent(SUPABASE_BUCKET) + "/" +
+    objectPath.split("/").map(encodeURIComponent).join("/");
+  const stream = nodeFs.createReadStream(filePath);
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
+      "Content-Type": contentType,
+      "Content-Length": String(stat.size),
+      "x-upsert": "false"
+    },
+    body: stream,
+    duplex: "half",
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)
+  });
+  if (!uploadResponse.ok) {
+    const detail = (await uploadResponse.text()).slice(0, 500);
+    console.error("Supabase Storage upload failed:", uploadResponse.status, detail);
+    throw new Error("Não foi possível salvar o arquivo no armazenamento online.");
+  }
+
+  const signResponse = await fetch(SUPABASE_URL + "/storage/v1/object/sign/" +
+    encodeURIComponent(SUPABASE_BUCKET) + "/" +
+    objectPath.split("/").map(encodeURIComponent).join("/"), {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ expiresIn: 3600 })
+    });
+  if (!signResponse.ok) {
+    const detail = (await signResponse.text()).slice(0, 500);
+    console.error("Supabase Storage signed URL failed:", signResponse.status, detail);
+    throw new Error("O arquivo foi armazenado, mas não foi possível gerar o link temporário.");
+  }
+  const signed = await signResponse.json();
+  const signedPath = signed.signedURL || signed.signedUrl;
+  if (!signedPath) throw new Error("O armazenamento não retornou um link temporário.");
+  return signedPath.startsWith("http") ? signedPath : SUPABASE_URL + "/storage/v1" + (signedPath.startsWith("/") ? signedPath : "/" + signedPath);
+}
+
+async function handleStoredDownload(req, res) {
+  const { url } = req.body || {};
+  if (!isAllowedUrl(url)) {
+    return res.status(400).json({ error: "URL inválida ou domínio não autorizado.", allowedHosts: ALLOWED_HOSTS });
+  }
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(503).json({ error: "O armazenamento online ainda precisa ser conectado no Render." });
+  }
+
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "wentube-stored-"));
+  try {
+    await runYtDlp(url, path.join(workDir, "%(id)s.%(ext)s"), DOWNLOAD_TIMEOUT_MS);
+    const entries = await fs.readdir(workDir);
+    const candidates = [];
+    for (const entry of entries) {
+      const fullPath = path.join(workDir, entry);
+      const stat = await fs.stat(fullPath);
+      if (stat.isFile() && !entry.endsWith(".part") && !entry.endsWith(".ytdl")) {
+        candidates.push({ fullPath, name: entry, size: stat.size });
+      }
+    }
+    if (!candidates.length) return res.status(502).json({ error: "A fonte não retornou um arquivo baixável." });
+    candidates.sort((a, b) => b.size - a.size);
+    const file = candidates[0];
+    if (file.size > MAX_DOWNLOAD_MB * 1024 * 1024) {
+      return res.status(413).json({ error: "O arquivo excede o tamanho máximo permitido." });
+    }
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 150) || "video.mp4";
+    const objectPath = new Date().toISOString().slice(0, 10) + "/" + crypto.randomUUID() + "-" + safeName;
+    const ext = path.extname(safeName).toLowerCase();
+    const contentType = ext === ".mp4" ? "video/mp4" : ext === ".webm" ? "video/webm" : ext === ".mov" ? "video/quicktime" : "application/octet-stream";
+    const downloadUrl = await uploadToSupabaseStorage(file.fullPath, objectPath, contentType);
+    return res.json({
+      status: "ready",
+      filename: safeName,
+      size: file.size,
+      storage: SUPABASE_BUCKET,
+      expiresInSeconds: 3600,
+      downloadUrl
+    });
+  } catch (error) {
+    const message = error && error.message ? error.message : "Erro inesperado.";
+    const status = message.includes("tempo limite") ? 504 : message.includes("armazenamento") || message.includes("link temporário") || message.includes("salvar o arquivo") ? 502 : 502;
+    return res.status(status).json({ error: message });
+  } finally {
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "wentube-api" });
 });
@@ -162,6 +266,7 @@ app.get("/health", (_req, res) => {
 // Endpoint para a interface web: não expõe a chave secreta no navegador.
 // Continua protegido por limite de requisições, tamanho máximo e domínios permitidos.
 app.post("/api/web-download", limiter, handleDownload);
+app.post("/api/web-download-stored", limiter, handleStoredDownload);
 
 app.post("/api/download", limiter, async (req, res) => {
   if (!hasValidKey(req)) {
